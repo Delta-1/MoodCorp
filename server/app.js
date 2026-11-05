@@ -57,7 +57,16 @@ export function createApp({store,secret,gateway=null,ai=companion,staticPath}){
  if(!u)return null;if(/^(PARAR|SAIR|STOP)$/i.test(message.trim())){u.whatsappConsent=false;await store.put('user',cid,u,u.id);return 'Atendimento por WhatsApp desativado. Você pode reativar pelo perfil no MoodCorp.';}
  if(/^[1-5]$/.test(message.trim())){await store.put('checkin',cid,{owner:u.id,day:day(),mood:Number(message.trim()),note:'',shared:u.shareMood===true,source:'whatsapp',at:new Date().toISOString()},lookup(secret,'checkin',u.id,day()));return 'Check-in registrado. '+(u.shareMood?'Seu humor foi compartilhado com o RH conforme sua preferência.':'Seu humor ficou privado.')+' Quer contar um pouco sobre como foi seu dia?';}
  if(!u.aiConsent)return 'Para conversar com a assistente, autorize o uso da IA em Meu perfil no MoodCorp. Você pode registrar seu humor enviando um número de 1 a 5.';try{return (await reply(u,message,'whatsapp')).text;}catch(e){return e.status===409?'A assistente ainda não foi ativada pelo RH. Você pode registrar seu humor enviando um número de 1 a 5.':'Não consegui responder agora. Tente novamente mais tarde ou use o aplicativo.';}};
- if(staticPath){app.use(express.static(staticPath,{maxAge:'1h',index:'index.html'}));app.get('*',(req,res)=>{if(req.path.startsWith('/api'))return res.status(404).json({error:'Página não encontrada.'});res.set('Cache-Control','no-cache').sendFile(staticPath+'/index.html');});}
+ if(staticPath){
+  app.use(express.static(staticPath,{maxAge:0,index:'index.html',setHeaders(res,path){res.setHeader('Cache-Control',path.endsWith('.html')?'no-store, max-age=0':path.includes('/assets/')?'public, max-age=31536000, immutable':'no-cache');}}));
+  app.get('*',(req,res)=>{
+   res.set('Cache-Control','no-store, max-age=0');
+   // An obsolete script must never be served index.html with HTTP 200. Cached
+   // HTML from a previous release otherwise produces a blank page (MIME error).
+   if(req.path.startsWith('/api')||req.path.startsWith('/assets/')||/\.[a-z0-9]+$/i.test(req.path))return res.status(404).json({error:'Arquivo não encontrado. Atualize a página para carregar a versão atual.'});
+   res.sendFile(staticPath+'/index.html');
+  });
+ }
  app.use((error,req,res,next)=>{if(res.headersSent)return next(error);res.status(error.status||500).json({error:error.status?error.message:'Ocorreu uma falha. Tente novamente.'});});
  return app;
 }
