@@ -42,3 +42,14 @@ test('malformed cached sessions are ignored and remembered login tolerates quota
  const state=createSessionState({localStorage:local,sessionStorage:session});assert.equal(state.get(),'');state.set('c'.repeat(43),true);
  assert.equal(memory.get('moodcorp.session'),'c'.repeat(43));state.set('');assert.equal(memory.size,0);
 });
+
+test('GitHub Pages can reach the API through restricted CORS, including authenticated preflights',async t=>{
+ const app=createApp({store:new MemoryStore(),secret:'pages-test-secret-at-least-32-characters'}),server=app.listen(0,'127.0.0.1');
+ await new Promise(r=>server.once('listening',r));t.after(()=>new Promise(r=>server.close(r)));
+ const base='http://127.0.0.1:'+server.address().port;
+ const preflight=await fetch(base+'/api/auth/login',{method:'OPTIONS',headers:{Origin:'https://delta-1.github.io','Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type,authorization'}});
+ assert.equal(preflight.status,204);assert.equal(preflight.headers.get('access-control-allow-origin'),'https://delta-1.github.io');assert.match(preflight.headers.get('access-control-allow-headers'),/Authorization/);assert.match(preflight.headers.get('vary'),/Origin/);
+ const health=await fetch(base+'/api/health',{headers:{Origin:'https://delta-1.github.io'}});assert.equal(health.status,200);assert.equal(health.headers.get('access-control-allow-origin'),'https://delta-1.github.io');
+ const unauthorized=await fetch(base+'/api/bootstrap',{headers:{Origin:'https://delta-1.github.io'}});assert.equal(unauthorized.status,401);assert.equal(unauthorized.headers.get('access-control-allow-origin'),'https://delta-1.github.io');
+ const forbidden=await fetch(base+'/api/auth/login',{method:'OPTIONS',headers:{Origin:'https://untrusted.example'}});assert.equal(forbidden.status,403);assert.equal(forbidden.headers.get('access-control-allow-origin'),null);
+});

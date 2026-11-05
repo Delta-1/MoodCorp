@@ -73,3 +73,9 @@ npm start
 Os testes usam HTTP real contra a API com armazenamento em memória e verificam: cadastro, privilégios, dados obrigatórios, isolamento entre empresas, consentimento, ausência de autoria em relatos, capacidade de acompanhamento, revogação de sessões, rotação de código, proteção da chave de IA, troca de senha, vínculo por posse do WhatsApp e bloqueio de histórico anterior ao marco.
 
 Integrações externas exigem o RH escanear o QR e cadastrar uma chave válida. Um teste sem esses passos não comprova entrega WhatsApp nem respostas do provedor em produção.
+
+## GitHub Pages
+
+A interface é publicada pelo workflow **Deploy MoodCorp Pages**, com o build Vite (não o código TypeScript cru da raiz). A origem de publicação em Settings → Pages deve ser **GitHub Actions**.
+
+O workflow usa `GITHUB_PAGES=true` para o caminho `/MoodCorp/` e `VITE_API_URL=https://moodcorp-production.up.railway.app` para a API. O backend libera CORS exclusivamente para a origem autorizada `https://delta-1.github.io`, sem credenciais Supabase no navegador. A versão do Railway usa o mesmo código com caminhos na raiz e API na mesma origem.

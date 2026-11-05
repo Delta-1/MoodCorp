@@ -8,7 +8,17 @@ const reportSafe=r=>({id:r.id,category:r.category,title:r.title,body:r.body,stat
 const feedbackSafe=f=>({id:f.id,rating:f.rating,body:f.body,day:f.day,anonymous:f.anonymous,author:f.author||null});
 export function createApp({store,secret,gateway=null,ai=companion,staticPath}){
  const app=express();app.disable('x-powered-by');app.set('trust proxy',1);
- app.use((req,res,next)=>{res.set({'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'DENY','Permissions-Policy':'camera=(), microphone=(), geolocation=()','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"});if(req.path.startsWith('/api'))res.set('Cache-Control','no-store');if(req.method!=='GET'&&req.get('origin')){const allowed=new Set((process.env.ALLOWED_ORIGINS||'').split(',').filter(Boolean));const host=req.get('x-forwarded-host')||req.get('host');const origin=req.get('origin');if(origin!==`https://${host}`&&!(process.env.NODE_ENV!=='production'&&origin===`http://${host}`)&&!allowed.has(origin))return res.status(403).json({error:'Origem não autorizada.'});}next();});
+ app.use((req,res,next)=>{res.set({'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'DENY','Permissions-Policy':'camera=(), microphone=(), geolocation=()','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"});if(req.path.startsWith('/api')){
+  res.set('Cache-Control','no-store');
+  const origin=req.get('origin'),host=req.get('x-forwarded-host')||req.get('host');
+  const allowed=new Set(['https://delta-1.github.io',...(process.env.ALLOWED_ORIGINS||'').split(',').map(v=>v.trim()).filter(Boolean)]);
+  if(origin){
+   const sameOrigin=origin===`https://${host}`||(process.env.NODE_ENV!=='production'&&origin===`http://${host}`);
+   if(!sameOrigin&&!allowed.has(origin))return res.status(403).json({error:'Origem não autorizada.'});
+   res.vary('Origin');res.set({'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Methods':'GET, POST, PATCH, DELETE, OPTIONS','Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Max-Age':'600'});
+  }
+  if(req.method==='OPTIONS')return res.sendStatus(204);
+ }next();});
  app.use(express.json({limit:'40kb'}));app.use('/api',limiter(240));
  const route=(method,path,...handlers)=>app[method]('/api'+path,...handlers.map(h=>h.constructor.name==='AsyncFunction'?wrap(h):h));
  const auth=async(req,res,next)=>{const raw=String(req.get('authorization')||'').replace(/^Bearer /,'');if(!/^[\w-]{43}$/.test(raw))throw fail(401,'Entre na sua conta.');const session=await store.get('session',lookup(secret,'session',digest(raw)));if(!session||Date.parse(session.expiresAt)<Date.now())throw fail(401,'Sua sessão expirou. Entre novamente.');const user=await store.get('user',session.userId,session.companyId);if(!user||!user.active)throw fail(401,'Esta conta não está ativa.');req.user=user;req.sessionId=session.id;next();};
